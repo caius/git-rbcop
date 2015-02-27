@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+set -e
+
+
+ROOT=$(realpath "$(dirname $0)/..")
+
+DIFF_ARGS="-U0 --no-prefix --diff-filter=ACMRTUXB"
+DIFF_TARGET=${1-HEAD}
+
+if [[ ! -z $DEBUG ]]
+then
+  git diff $DIFF_ARGS $DIFF_TARGET | less
+fi
+
+GIT_AMENDED_FILES=$(git diff $DIFF_ARGS $DIFF_TARGET | ruby $ROOT/lib/diff_fiddler.rb)
+export GIT_AMENDED_FILES
+
+if [[ ! -z $DEBUG ]]
+then
+  echo "GIT_AMENDED_FILES=" $GIT_AMENDED_FILES
+fi
+
+if [[ $GIT_AMENDED_FILES == "null" ]]
+then
+  echo "No changes to lint"
+  exit 0
+fi
+
+WRAPPED_FORMATTER="RuboCop::Formatter::ClangStyleFormatter"
+export WRAPPED_FORMATTER
+
+rubocop \
+  --require "$ROOT/lib/git_diff_wrangler.rb" \
+  --format GitDiffWrangler \
+  $(git diff $DIFF_ARGS --name-only $DIFF_TARGET)
+
+rubocop .
